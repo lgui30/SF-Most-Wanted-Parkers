@@ -71,7 +71,10 @@ export default function Home() {
             >
               SFMTA Parking Citations dataset
             </a>
-            . Updated live.
+            . Updated live.{' '}
+            <a href="/about" className="text-blue-500 hover:underline">
+              How it works &rarr;
+            </a>
           </p>
         </div>
       </div>

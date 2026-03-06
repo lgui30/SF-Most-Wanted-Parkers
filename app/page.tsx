@@ -3,6 +3,7 @@ import path from 'path';
 import dynamic from 'next/dynamic';
 import SearchBar from '@/components/SearchBar';
 import LeaderboardTable from '@/components/LeaderboardTable';
+import MonthlyLeaderboard from '@/components/MonthlyLeaderboard';
 import { LeaderboardEntry } from '@/types';
 import { fetchLeaderboard } from '@/lib/db';
 
@@ -71,10 +72,15 @@ export default async function Home() {
           <CitationHotspotsMap />
         </div>
 
-        {/* Leaderboard */}
+        {/* Monthly Leaderboard */}
+        <div className="mb-12">
+          <MonthlyLeaderboard />
+        </div>
+
+        {/* All-Time Leaderboard */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-6">
-            Top 30 Offenders
+            All-Time Top 30 Offenders
           </h2>
           <LeaderboardTable data={leaderboardData} />
         </div>

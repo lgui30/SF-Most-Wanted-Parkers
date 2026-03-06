@@ -27,6 +27,19 @@ export interface PlateDetails {
   all_citations: Citation[];
 }
 
+export interface MonthlyLeaderboardEntry {
+  rank: number;
+  plate: string;
+  total_fines: number;
+  citation_count: number;
+  favorite_violation: string;
+}
+
+export interface AvailableMonth {
+  year: number;
+  month: number;
+}
+
 /**
  * @deprecated Use individual plate files instead (public/data/plates/{plate}.json)
  * This interface is kept for backward compatibility but the massive

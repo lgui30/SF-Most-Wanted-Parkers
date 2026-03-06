@@ -28,7 +28,6 @@ function getAvailableMonths() {
 
 interface Meta {
   total_citations: number;
-  unique_plates: number;
 }
 
 export default function MonthlyLeaderboard() {
@@ -132,10 +131,7 @@ export default function MonthlyLeaderboard() {
           {meta && (
             <div className="flex items-center gap-3 mb-4 text-sm text-gray-500 dark:text-gray-400">
               <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">
-                {meta.total_citations.toLocaleString()} citations
-              </span>
-              <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
-                {meta.unique_plates.toLocaleString()} unique plates
+                {(meta.total_citations || 0).toLocaleString()} citations
               </span>
             </div>
           )}
@@ -159,10 +155,10 @@ export default function MonthlyLeaderboard() {
               </div>
               <div className="text-right">
                 <p className="text-3xl font-bold">
-                  ${data[0].total_fines.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  ${(data[0].total_fines || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </p>
                 <p className="text-red-100">
-                  {data[0].citation_count} tickets in one month
+                  {data[0].citation_count || 0} tickets in one month
                 </p>
               </div>
             </div>
@@ -207,7 +203,7 @@ export default function MonthlyLeaderboard() {
                       {entry.favorite_violation}
                     </td>
                     <td className="py-3 px-6 text-right font-semibold text-red-600 dark:text-red-400">
-                      ${entry.total_fines.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      ${(entry.total_fines || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </td>
                     <td className="py-3 px-6 text-right">
                       <span className="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-3 py-1 rounded-full text-sm font-medium">

@@ -1,0 +1,84 @@
+name: Monthly Data Update
+
+on:
+  schedule:
+    # Runs at 8:00 AM UTC on the 2nd of every month
+    # (2nd instead of 1st to ensure previous month's data is fully available)
+    - cron: '0 8 2 * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub Actions UI
+    inputs:
+      year:
+        description: 'Year to fetch (leave empty for previous month)'
+        required: false
+      month:
+        description: 'Month to fetch (leave empty for previous month)'
+        required: false
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Determine month to fetch
+        id: date
+        run: |
+          if [ -n "${{ github.event.inputs.year }}" ] && [ -n "${{ github.event.inputs.month }}" ]; then
+            echo "year=${{ github.event.inputs.year }}" >> $GITHUB_OUTPUT
+            echo "month=${{ github.event.inputs.month }}" >> $GITHUB_OUTPUT
+          else
+            # Get previous month
+            PREV_MONTH=$(date -d "last month" +%m 2>/dev/null || date -v-1m +%m)
+            PREV_YEAR=$(date -d "last month" +%Y 2>/dev/null || date -v-1m +%Y)
+            echo "year=$PREV_YEAR" >> $GITHUB_OUTPUT
+            echo "month=$PREV_MONTH" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch and store citation data
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "Fetching data for ${{ steps.date.outputs.year }}-${{ steps.date.outputs.month }}"
+          python fetch_2025_data.py \
+            --start-year ${{ steps.date.outputs.year }} \
+            --end-year ${{ steps.date.outputs.year }} \
+            --start-month ${{ steps.date.outputs.month }} \
+            --end-month ${{ steps.date.outputs.month }}
+
+      - name: Verify update
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python -c "
+          import psycopg2, os
+          conn = psycopg2.connect(os.environ['DATABASE_URL'])
+          cur = conn.cursor()
+          cur.execute('SELECT COUNT(*) FROM plate_details')
+          plates = cur.fetchone()[0]
+          cur.execute('SELECT COUNT(*) FROM leaderboard')
+          leaders = cur.fetchone()[0]
+          cur.execute('SELECT COUNT(*) FROM citation_hotspots')
+          hotspots = cur.fetchone()[0]
+          cur.execute('SELECT year, month, plate, total_fines, citation_count FROM monthly_leaderboard WHERE rank = 1 ORDER BY year DESC, month DESC LIMIT 3')
+          recent = cur.fetchall()
+          print(f'DB totals - Plates: {plates:,} | Leaderboard: {leaders} | Hotspots: {hotspots:,}')
+          print('Recent monthly #1 offenders:')
+          for y, m, p, f, c in recent:
+              print(f'  {y}-{m:02d}: {p} \${f:,.0f} ({c} tickets)')
+          cur.close()
+          conn.close()
+          "

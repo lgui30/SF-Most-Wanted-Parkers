@@ -76,6 +76,34 @@ export async function fetchCitationHotspots(limit = 20) {
   }[];
 }
 
+// Fetch monthly leaderboard - top offenders for a specific month
+export async function fetchMonthlyLeaderboard(year: number, month: number, limit = 30) {
+  const { rows } = await sql`
+    SELECT rank, plate, total_fines, citation_count, favorite_violation
+    FROM monthly_leaderboard
+    WHERE year = ${year} AND month = ${month}
+    ORDER BY rank ASC
+    LIMIT ${limit};
+  `;
+  return rows as {
+    rank: number;
+    plate: string;
+    total_fines: number;
+    citation_count: number;
+    favorite_violation: string;
+  }[];
+}
+
+// Fetch all available months that have leaderboard data
+export async function fetchAvailableMonths() {
+  const { rows } = await sql`
+    SELECT DISTINCT year, month
+    FROM monthly_leaderboard
+    ORDER BY year DESC, month DESC;
+  `;
+  return rows as { year: number; month: number }[];
+}
+
 // Fetch all hotspots for heatmap (more data)
 export async function fetchAllHotspots(limit = 1000) {
   const { rows } = await sql`

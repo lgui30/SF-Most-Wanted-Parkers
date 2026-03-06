@@ -30,9 +30,26 @@ interface Meta {
   total_citations: number;
 }
 
-export default function MonthlyLeaderboard() {
+interface Props {
+  onMonthChange?: (year: number, month: number) => void;
+}
+
+export default function MonthlyLeaderboard({ onMonthChange }: Props) {
   const availableMonths = getAvailableMonths();
-  const [selectedMonth, setSelectedMonth] = useState(availableMonths[0]);
+  const [selectedMonth, setSelectedMonthState] = useState(availableMonths[0]);
+
+  const setSelectedMonth = (m: { year: number; month: number }) => {
+    setSelectedMonthState(m);
+    onMonthChange?.(m.year, m.month);
+  };
+
+  // Notify parent of initial month
+  useEffect(() => {
+    if (selectedMonth) {
+      onMonthChange?.(selectedMonth.year, selectedMonth.month);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [data, setData] = useState<MonthlyLeaderboardEntry[]>([]);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loading, setLoading] = useState(true);

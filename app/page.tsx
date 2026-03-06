@@ -1,13 +1,15 @@
+'use client';
+
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import SearchBar from '@/components/SearchBar';
 import MonthlyLeaderboard from '@/components/MonthlyLeaderboard';
 import QuarterlyLeaderboard from '@/components/QuarterlyLeaderboard';
 
-// Dynamically import map component (requires browser APIs)
 const CitationHotspotsMap = dynamic(() => import('@/components/CitationHotspotsMap'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[600px] bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+    <div className="w-full h-[500px] bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <p className="text-gray-600 dark:text-gray-400">Loading map...</p>
@@ -17,6 +19,8 @@ const CitationHotspotsMap = dynamic(() => import('@/components/CitationHotspotsM
 });
 
 export default function Home() {
+  const [mapMonth, setMapMonth] = useState<{ year: number; month: number } | null>(null);
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       <div className="container mx-auto px-4 py-12 max-w-6xl">
@@ -36,14 +40,18 @@ export default function Home() {
         {/* Search Bar */}
         <SearchBar />
 
-        {/* Citation Hotspots Map */}
-        <div className="mb-12">
-          <CitationHotspotsMap />
+        {/* Monthly Leaderboard */}
+        <div className="mb-8">
+          <MonthlyLeaderboard
+            onMonthChange={(year, month) => setMapMonth({ year, month })}
+          />
         </div>
 
-        {/* Monthly Leaderboard */}
+        {/* Map synced to selected month */}
         <div className="mb-12">
-          <MonthlyLeaderboard />
+          {mapMonth && (
+            <CitationHotspotsMap year={mapMonth.year} month={mapMonth.month} />
+          )}
         </div>
 
         {/* Quarterly Leaderboard */}

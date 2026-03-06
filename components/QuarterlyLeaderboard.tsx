@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MonthlyLeaderboardEntry } from '@/types';
+import ViolationBadge from '@/components/ViolationBadge';
 
 interface Meta {
   label: string;
@@ -102,7 +103,7 @@ export default function QuarterlyLeaderboard() {
                   </Link>
                 </td>
                 <td className="py-4 px-6 text-sm text-gray-500 dark:text-gray-400">
-                  {entry.favorite_violation}
+                  <ViolationBadge code={entry.favorite_violation} />
                 </td>
                 <td className="py-4 px-6 text-right font-semibold text-red-600 dark:text-red-400">
                   ${(entry.total_fines || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

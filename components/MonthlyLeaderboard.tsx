@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MonthlyLeaderboardEntry } from '@/types';
+import ViolationBadge from '@/components/ViolationBadge';
 
 const MONTH_NAMES = [
   '', 'January', 'February', 'March', 'April', 'May', 'June',
@@ -167,7 +168,7 @@ export default function MonthlyLeaderboard({ onMonthChange }: Props) {
                   {data[0].plate}
                 </Link>
                 <p className="text-red-100 mt-1">
-                  Favorite violation: {data[0].favorite_violation}
+                  Favorite violation: <ViolationBadge code={data[0].favorite_violation} className="text-white" />
                 </p>
               </div>
               <div className="text-right">
@@ -217,7 +218,7 @@ export default function MonthlyLeaderboard({ onMonthChange }: Props) {
                       </Link>
                     </td>
                     <td className="py-3 px-6 text-sm text-gray-500 dark:text-gray-400">
-                      {entry.favorite_violation}
+                      <ViolationBadge code={entry.favorite_violation} />
                     </td>
                     <td className="py-3 px-6 text-right font-semibold text-red-600 dark:text-red-400">
                       ${(entry.total_fines || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}

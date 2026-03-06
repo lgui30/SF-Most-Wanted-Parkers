@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import VIOLATION_DEFINITIONS from '@/lib/violationCodes';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -155,8 +156,13 @@ export default function CitationHotspotsMap({ year, month }: Props) {
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                           <span style={{ color: '#6b7280' }}>Top Violation:</span>
-                          <span style={{ fontWeight: 600, color }}>{hotspot.top_violation}</span>
+                          <span style={{ fontWeight: 600, color }} title={VIOLATION_DEFINITIONS[hotspot.top_violation] || ''}>{hotspot.top_violation}</span>
                         </div>
+                        {VIOLATION_DEFINITIONS[hotspot.top_violation] && (
+                          <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', fontStyle: 'italic' }}>
+                            {VIOLATION_DEFINITIONS[hotspot.top_violation]}
+                          </div>
+                        )}
                       </div>
                       {Object.keys(hotspot.violation_breakdown).length > 1 && (
                         <div style={{ fontSize: '11px', color: '#9ca3af', borderTop: '1px solid #e5e7eb', paddingTop: '6px' }}>

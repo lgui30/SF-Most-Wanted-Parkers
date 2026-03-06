@@ -28,7 +28,7 @@ export default function SearchBar() {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto mb-8">
+    <div className="w-full max-w-2xl mx-auto mb-5">
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"

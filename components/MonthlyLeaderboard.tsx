@@ -96,8 +96,8 @@ export default function MonthlyLeaderboard({ onMonthChange }: Props) {
   return (
     <div>
       {/* Month navigator */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <h2 className="text-3xl font-bold text-gray-800 dark:text-white">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
           Monthly Most Wanted
         </h2>
         <div className="flex items-center gap-2">
@@ -147,35 +147,35 @@ export default function MonthlyLeaderboard({ onMonthChange }: Props) {
         <>
           {/* Stats bar */}
           {meta && (
-            <div className="flex items-center gap-3 mb-4 text-sm text-gray-500 dark:text-gray-400">
-              <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">
+            <div className="flex items-center gap-3 mb-3 text-xs text-gray-500 dark:text-gray-400">
+              <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">
                 {(meta.total_citations || 0).toLocaleString()} citations
               </span>
             </div>
           )}
 
           {/* #1 Offender spotlight */}
-          <div className="mb-6 p-6 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl text-white shadow-lg">
-            <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="mb-4 px-5 py-4 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl text-white shadow-lg">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <p className="text-red-100 text-sm font-medium uppercase tracking-wide">
+                <p className="text-red-100 text-xs font-medium uppercase tracking-wide">
                   {MONTH_NAMES[selectedMonth.month]} {selectedMonth.year} &mdash; #1 Most Wanted
                 </p>
                 <Link
                   href={`/plate/${encodeURIComponent(data[0].plate)}`}
-                  className="text-4xl font-mono font-black hover:underline"
+                  className="text-3xl font-mono font-black hover:underline"
                 >
                   {data[0].plate}
                 </Link>
-                <p className="text-red-100 mt-1">
+                <p className="text-red-100 text-sm mt-0.5">
                   Favorite violation: <ViolationBadge code={data[0].favorite_violation} className="text-white" />
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-bold">
+                <p className="text-2xl font-bold">
                   ${(data[0].total_fines || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </p>
-                <p className="text-red-100">
+                <p className="text-red-100 text-sm">
                   {data[0].citation_count || 0} tickets in one month
                 </p>
               </div>
@@ -202,14 +202,14 @@ export default function MonthlyLeaderboard({ onMonthChange }: Props) {
                       index < 2 ? 'bg-red-50 dark:bg-red-900/20' : ''
                     }`}
                   >
-                    <td className="py-3 px-6">
+                    <td className="py-2 px-5">
                       <span className="font-bold">
                         {entry.rank === 2 && '🥈 '}
                         {entry.rank === 3 && '🥉 '}
                         #{entry.rank}
                       </span>
                     </td>
-                    <td className="py-3 px-6">
+                    <td className="py-2 px-5">
                       <Link
                         href={`/plate/${encodeURIComponent(entry.plate)}`}
                         className="text-blue-600 dark:text-blue-400 hover:underline font-mono font-bold"

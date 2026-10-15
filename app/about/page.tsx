@@ -92,9 +92,9 @@ export default function AboutPage() {
             <div>
               <h3 className="font-semibold text-gray-800 dark:text-white mb-1">3. Hotspot Mapping</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                We aggregate citations by street address, then geocode the top 10 locations
-                using Nominatim (OpenStreetMap&apos;s free geocoding service) to plot them on the map.
-                Geocoded coordinates are cached in memory for fast subsequent loads.
+                We aggregate citations by street address and plot the top 10 locations, using the
+                latitude/longitude SFMTA records on each citation (averaged per address). No
+                third-party geocoding is needed.
               </p>
             </div>
             <div>
@@ -161,8 +161,9 @@ export default function AboutPage() {
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-3 text-sm text-gray-600 dark:text-gray-400">
             <p>
               <strong className="text-gray-800 dark:text-white">Data freshness:</strong>{' '}
-              There may be a delay between when SFMTA issues a citation and when it appears
-              in the public dataset. Recent months may show incomplete data.
+              SF publishes citations a few days after they&apos;re issued. The current month is
+              shown as &ldquo;so far&rdquo; and fills in as new data is published. Results are
+              cached for up to an hour, so a brand-new upload can take that long to appear.
             </p>
             <p>
               <strong className="text-gray-800 dark:text-white">Dismissed citations:</strong>{' '}
@@ -192,7 +193,7 @@ export default function AboutPage() {
               <div><strong className="text-gray-800 dark:text-white">Framework:</strong> Next.js 14</div>
               <div><strong className="text-gray-800 dark:text-white">Data API:</strong> Socrata SODA2</div>
               <div><strong className="text-gray-800 dark:text-white">Maps:</strong> Leaflet + OpenStreetMap</div>
-              <div><strong className="text-gray-800 dark:text-white">Geocoding:</strong> Nominatim (free)</div>
+              <div><strong className="text-gray-800 dark:text-white">Caching:</strong> Next.js data cache + CDN</div>
               <div><strong className="text-gray-800 dark:text-white">Hosting:</strong> Vercel</div>
               <div><strong className="text-gray-800 dark:text-white">Cost:</strong> $0 (all free APIs)</div>
             </div>

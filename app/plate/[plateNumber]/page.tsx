@@ -1,16 +1,16 @@
-import { promises as fs } from 'fs';
-import path from 'path';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { PlateDetails } from '@/types';
-import { fetchPlateDetails } from '@/lib/db';
+import type { Metadata } from 'next';
+import { Citation, PlateDetails } from '@/types';
+import { fetchPlateCitationsLive, isValidPlate } from '@/lib/soda';
+import ViolationBadge from '@/components/ViolationBadge';
 
 // Dynamically import the map component with no SSR
 const TicketMap = dynamic(() => import('@/components/TicketMap'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-[500px] bg-gray-200 rounded-lg flex items-center justify-center">
-      <p className="text-gray-600">Loading map...</p>
+    <div className="w-full h-[500px] bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+      <p className="text-gray-600 dark:text-gray-300">Loading map...</p>
     </div>
   ),
 });
@@ -21,84 +21,122 @@ interface PageProps {
   };
 }
 
-/**
- * Load plate details from individual plate file (optimized)
- * 
- * Instead of loading a massive 10M+ line JSON file, we now load
- * individual plate files for better performance and memory efficiency.
- */
-async function getPlateDetails(plateNumber: string): Promise<PlateDetails | null> {
-  // Try database first (already filters to 2025+ in the query)
-  try {
-    const dbResult = await fetchPlateDetails(plateNumber);
-    if (dbResult) {
-      // Database query already filters to 2025-01-01 onwards
-      const plateDetails = dbResult as PlateDetails;
-      
-      // Additional safety filter in case database doesn't have citations array
-      const citations2025 = (plateDetails.all_citations || []).filter(citation => {
-        if (!citation.date) return false;
-        const citationDate = new Date(citation.date);
-        return citationDate >= new Date('2025-01-01T00:00:00');
-      });
-      
-      // Return filtered data
-      return {
-        ...plateDetails,
-        all_citations: citations2025,
-        citation_count: citations2025.length,
-        total_fines: citations2025.reduce((sum, c) => sum + (c.fine_amount || 0), 0)
-      };
-    }
-  } catch (err) {
-    console.error('DB error, falling back to file', err);
-  }
+function toNumber(value: unknown): number | undefined {
+  const n = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+  return Number.isFinite(n) && n !== 0 ? n : undefined;
+}
 
-  // Fallback to file storage (legacy) - also filter to 2025-01-01 onwards
-  try {
-    const plateFile = path.join(process.cwd(), 'public', 'data', 'plates', `${plateNumber}.json`);
-    await fs.access(plateFile);
-    const fileContents = await fs.readFile(plateFile, 'utf8');
-    const plateDetails = JSON.parse(fileContents);
-    
-    // Filter to citations from 2025-01-01 onwards
-    const citations2025 = plateDetails.all_citations.filter((citation: any) => {
-      if (!citation.date) return false;
-      const citationDate = new Date(citation.date);
-      return citationDate >= new Date('2025-01-01T00:00:00');
-    });
-    
-    return {
-      ...plateDetails,
-      all_citations: citations2025,
-      citation_count: citations2025.length,
-      total_fines: citations2025.reduce((sum: number, c: any) => sum + (c.fine_amount || 0), 0)
-    };
-  } catch {
-    return null;
+function mostCommon(values: string[]): string {
+  const counts: Record<string, number> = {};
+  let best = 'Unknown';
+  let bestCount = 0;
+  for (const v of values) {
+    counts[v] = (counts[v] || 0) + 1;
+    if (counts[v] > bestCount) {
+      best = v;
+      bestCount = counts[v];
+    }
   }
+  return best;
+}
+
+function summarize(citations: Citation[], plate_state?: string): PlateDetails {
+  return {
+    plate_state,
+    all_citations: citations,
+    citation_count: citations.length,
+    total_fines: citations.reduce((sum, c) => sum + (c.fine_amount || 0), 0),
+    favorite_violation: mostCommon(citations.map(c => c.violation)),
+  };
+}
+
+type PlateLookup =
+  | { status: 'found'; details: PlateDetails }
+  | { status: 'not_found' }
+  | { status: 'unavailable' };
+
+/** Load a plate's 2025+ citations live from SF Open Data (free, no database). */
+async function getPlateDetails(plateNumber: string): Promise<PlateLookup> {
+  try {
+    const rows = await fetchPlateCitationsLive(plateNumber);
+    if (rows.length === 0) return { status: 'not_found' };
+    const citations: Citation[] = rows.map(row => ({
+      date: row.citation_issued_datetime || null,
+      violation: row.violation_desc || row.violation || 'Unknown',
+      fine_amount: parseFloat(row.fine_amount || '0') || 0,
+      citation_number: row.citation_number,
+      location: row.citation_location,
+      latitude: toNumber(row.latitude),
+      longitude: toNumber(row.longitude),
+    }));
+    return { status: 'found', details: summarize(citations, rows[0].vehicle_plate_state) };
+  } catch (err) {
+    console.error('SF Open Data lookup failed', err);
+    return { status: 'unavailable' };
+  }
+}
+
+function formatDate(date: string | null) {
+  if (!date) return 'N/A';
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDay(date: string) {
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatMoney(amount: number) {
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
+
+export function generateMetadata({ params }: PageProps): Metadata {
+  const plateNumber = decodeURIComponent(params.plateNumber).toUpperCase();
+  return {
+    title: `${plateNumber} | SF's Most Wanted Parkers`,
+    description: `Parking citation history for plate ${plateNumber} in San Francisco since 2025.`,
+  };
 }
 
 /**
  * Plate Details Page - Shows the "rap sheet" for a specific license plate
- * 
+ *
  * Displays all parking violations, statistics, and a map of ticket locations.
  */
 export default async function PlatePage({ params }: PageProps) {
-  const plateNumber = decodeURIComponent(params.plateNumber).toUpperCase();
-  const plateDetails = await getPlateDetails(plateNumber);
+  const plateNumber = decodeURIComponent(params.plateNumber).trim().toUpperCase();
+  const lookup: PlateLookup = isValidPlate(plateNumber)
+    ? await getPlateDetails(plateNumber)
+    : { status: 'not_found' };
 
-  // Handle plate not found
-  if (!plateDetails) {
+  // Handle plate not found, or SF Open Data being down
+  if (lookup.status !== 'found') {
+    const unavailable = lookup.status === 'unavailable';
     return (
-      <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+      <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
         <div className="container mx-auto px-4 py-12 max-w-6xl">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Plate Not Found
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+              {unavailable ? 'Data Temporarily Unavailable' : 'Plate Not Found'}
             </h1>
-            <p className="text-xl text-gray-600 mb-8">
-              No parking violations found for plate <span className="font-mono font-bold">{plateNumber}</span>
+            <p className="text-xl text-gray-600 dark:text-gray-300 mb-8">
+              {unavailable ? (
+                <>SF Open Data isn&apos;t responding right now. Try again in a minute.</>
+              ) : (
+                <>
+                  No parking violations since 2025 for plate{' '}
+                  <span className="font-mono font-bold">{plateNumber}</span>
+                </>
+              )}
             </p>
             <Link
               href="/"
@@ -111,6 +149,12 @@ export default async function PlatePage({ params }: PageProps) {
       </main>
     );
   }
+
+  const plateDetails = lookup.details;
+  const { all_citations } = plateDetails;
+  const mappedCount = all_citations.filter(c => c.latitude && c.longitude).length;
+  const firstDate = all_citations[all_citations.length - 1]?.date;
+  const lastDate = all_citations[0]?.date;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
@@ -125,21 +169,30 @@ export default async function PlatePage({ params }: PageProps) {
           </Link>
           <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-2">
             <span className="font-mono">{plateNumber}</span>
+            {plateDetails.plate_state && (
+              <span className="ml-3 align-middle text-base font-semibold px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+                {plateDetails.plate_state}
+              </span>
+            )}
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300">2025 Parking Violations</p>
+          <p className="text-xl text-gray-600 dark:text-gray-300">
+            Parking violations since Jan 2025
+            {lastDate && (
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {' '}&middot; most recent {formatDay(lastDate)}
+              </span>
+            )}
+          </p>
         </div>
 
         {/* Key Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border-l-4 border-red-500">
             <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase mb-2">
-              Total Fines Owed
+              Total Fines
             </h3>
             <p className="text-4xl font-bold text-red-600 dark:text-red-400">
-              ${plateDetails.total_fines.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {formatMoney(plateDetails.total_fines)}
             </p>
           </div>
 
@@ -150,6 +203,12 @@ export default async function PlatePage({ params }: PageProps) {
             <p className="text-4xl font-bold text-orange-600 dark:text-orange-400">
               {plateDetails.citation_count.toLocaleString()}
             </p>
+            {firstDate && lastDate && plateDetails.citation_count > 1 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {formatDay(firstDate)} –{' '}
+                {formatDay(lastDate)}
+              </p>
+            )}
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border-l-4 border-blue-500">
@@ -157,7 +216,7 @@ export default async function PlatePage({ params }: PageProps) {
               Favorite Violation
             </h3>
             <p className="text-lg font-semibold text-blue-600 dark:text-blue-400 leading-tight">
-              {plateDetails.favorite_violation}
+              <ViolationBadge code={plateDetails.favorite_violation} />
             </p>
           </div>
         </div>
@@ -165,18 +224,20 @@ export default async function PlatePage({ params }: PageProps) {
         {/* Map Section */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
-            Ticket Locations (2025)
+            Ticket Locations
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Map showing all {plateDetails.all_citations.length} parking violations for this plate in 2025
+            {mappedCount === all_citations.length
+              ? `All ${mappedCount} citations mapped`
+              : `${mappedCount} of ${all_citations.length} citations have map coordinates`}
           </p>
-          <TicketMap citations={plateDetails.all_citations} />
+          <TicketMap citations={all_citations} />
         </div>
 
-        {/* Recent Citations */}
+        {/* Citations */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
-            All Citations (2025)
+            All Citations
           </h2>
           <div className="overflow-x-auto">
             <table className="min-w-full">
@@ -191,38 +252,34 @@ export default async function PlatePage({ params }: PageProps) {
                   <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
                     Location
                   </th>
+                  <th className="py-3 px-4 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Fine
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
-                {plateDetails.all_citations
-                  .sort((a, b) => {
-                    if (!a.date) return 1;
-                    if (!b.date) return -1;
-                    return new Date(b.date).getTime() - new Date(a.date).getTime();
-                  })
-                  .map((citation, index) => (
-                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300">
-                        {citation.date
-                          ? new Date(citation.date).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : 'N/A'}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300">
-                        {citation.violation}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
-                        {citation.latitude && citation.longitude
+                {all_citations.map((citation, index) => (
+                  <tr
+                    key={citation.citation_number || index}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                      {formatDate(citation.date)}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-700 dark:text-gray-300">
+                      <ViolationBadge code={citation.violation} />
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                      {citation.location ||
+                        (citation.latitude && citation.longitude
                           ? `${citation.latitude.toFixed(4)}, ${citation.longitude.toFixed(4)}`
-                          : 'No location data'}
-                      </td>
-                    </tr>
-                  ))}
+                          : 'No location data')}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-right font-semibold text-red-600 dark:text-red-400 whitespace-nowrap">
+                      {citation.fine_amount ? formatMoney(citation.fine_amount) : '—'}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -231,4 +288,3 @@ export default async function PlatePage({ params }: PageProps) {
     </main>
   );
 }
-

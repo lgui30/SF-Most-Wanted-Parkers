@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Citation } from '@/types';
 
@@ -12,6 +12,16 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
+
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (points.length > 1) {
+      map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 });
+    }
+  }, [points, map]);
+  return null;
+}
 
 interface TicketMapProps {
   citations: Citation[];
@@ -34,10 +44,10 @@ export default function TicketMap({ citations }: TicketMapProps) {
   // Filter citations with valid coordinates
   const validCitations = citations.filter(
     (citation) => 
-      citation.latitude !== undefined && 
-      citation.longitude !== undefined &&
-      !isNaN(citation.latitude) && 
-      !isNaN(citation.longitude)
+      typeof citation.latitude === 'number' &&
+      typeof citation.longitude === 'number' &&
+      Number.isFinite(citation.latitude) &&
+      Number.isFinite(citation.longitude)
   );
 
   if (!isMounted) {
@@ -84,6 +94,7 @@ export default function TicketMap({ citations }: TicketMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <FitBounds points={validCitations.map(c => [c.latitude!, c.longitude!] as [number, number])} />
         {validCitations.map((citation, index) => (
           <Marker
             key={index}
@@ -94,6 +105,12 @@ export default function TicketMap({ citations }: TicketMapProps) {
                 <p className="font-semibold text-gray-800 mb-1">
                   {citation.violation}
                 </p>
+                {citation.location && (
+                  <p className="text-gray-700 text-xs">{citation.location}</p>
+                )}
+                {!!citation.fine_amount && (
+                  <p className="text-red-600 text-xs font-semibold">${citation.fine_amount.toFixed(2)}</p>
+                )}
                 {citation.date && (
                   <p className="text-gray-600 text-xs">
                     {new Date(citation.date).toLocaleDateString('en-US', {

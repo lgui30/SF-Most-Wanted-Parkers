@@ -129,11 +129,9 @@ class TestParkingDataProcessor:
         # Verify files were created with new optimized structure
         leaderboard_path = output_dir / 'leaderboard.json'
         plates_dir = output_dir / 'plates'
-        index_path = output_dir / 'plate_index.json'
         
         assert leaderboard_path.exists()
         assert plates_dir.exists()
-        assert index_path.exists()
         
         # Verify leaderboard content
         with open(leaderboard_path, 'r') as f:
@@ -146,13 +144,6 @@ class TestParkingDataProcessor:
         # Verify individual plate file was created
         plate_file = plates_dir / 'ABC123.json'
         assert plate_file.exists()
-        
-        # Verify plate index
-        with open(index_path, 'r') as f:
-            index_data = json.load(f)
-        
-        assert 'ABC123' in index_data
-        assert index_data['ABC123']['total_fines'] == 300.0
 
     def test_empty_data_handling(self):
         """Test handling of empty/missing data"""

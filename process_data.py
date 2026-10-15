@@ -529,9 +529,6 @@ class ParkingDataProcessor:
         plates_dir = self.output_dir / 'plates'
         plates_dir.mkdir(exist_ok=True)
         
-        # Create index file for quick lookups
-        plate_index = {}
-        
         print(f"Saving individual plate files...")
         for i, (plate, data) in enumerate(self.plate_data.items(), 1):
             # Save each plate's data in separate file
@@ -539,27 +536,11 @@ class ParkingDataProcessor:
             with open(plate_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             
-            # Add to index
-            plate_index[plate] = {
-                'total_fines': data['total_fines'],
-                'citation_count': data['citation_count'],
-                'plate_state': data.get('plate_state', 'CA'),
-                'favorite_violation': data.get('favorite_violation', 'Unknown'),
-                'file': f"plates/{plate}.json"
-            }
-            
             # Progress indicator for large datasets
             if i % 1000 == 0:
                 print(f"  Progress: {i:,} / {len(self.plate_data):,} plates saved")
         
         print(f"✓ Saved {len(self.plate_data):,} individual plate files to {plates_dir}")
-        
-        # Save plate index
-        index_path = self.output_dir / 'plate_index.json'
-        with open(index_path, 'w', encoding='utf-8') as f:
-            json.dump(plate_index, f, indent=2, ensure_ascii=False)
-        
-        print(f"✓ Saved plate index: {index_path}")
         
         # Print summary statistics
         print("\n" + "="*60)

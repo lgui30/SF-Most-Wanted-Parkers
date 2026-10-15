@@ -1,10 +1,9 @@
 name: Monthly Data Update
 
+# The site now reads SF Open Data live (lib/soda.ts), so nothing reads the
+# Postgres tables this job fills. The schedule is disabled so it stops
+# waking the database every month; run it by hand if the DB is ever needed again.
 on:
-  schedule:
-    # Runs at 8:00 AM UTC on the 2nd of every month
-    # (2nd instead of 1st to ensure previous month's data is fully available)
-    - cron: '0 8 2 * *'
   workflow_dispatch:
     # Allow manual trigger from GitHub Actions UI
     inputs:

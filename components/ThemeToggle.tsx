@@ -4,6 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState } from 'react';
 
 export default function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
@@ -20,8 +21,6 @@ export default function ThemeToggle() {
       </button>
     );
   }
-
-  const { theme, toggleTheme } = useTheme();
 
   return (
     <button

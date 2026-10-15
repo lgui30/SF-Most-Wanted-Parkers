@@ -11,14 +11,12 @@ const MONTH_NAMES = [
 ];
 
 function getAvailableMonths() {
-  // Generate months from Jan 2025 to last complete month
+  // Every month from the current (in-progress) one back to Jan 2025
   const now = new Date();
   const months: { year: number; month: number }[] = [];
   let y = now.getFullYear();
-  let m = now.getMonth(); // 0-indexed, so this is last month (current month incomplete)
-  if (m === 0) { y--; m = 12; }
+  let m = now.getMonth() + 1;
 
-  // Go back from most recent complete month to Jan 2025
   while (y > 2025 || (y === 2025 && m >= 1)) {
     months.push({ year: y, month: m });
     m--;
@@ -27,8 +25,18 @@ function getAvailableMonths() {
   return months;
 }
 
+// SF publishes citations a few days late, so the current month is nearly
+// empty for its first week. Open on it once there's enough to rank.
+const MIN_DAY_FOR_CURRENT_MONTH = 8;
+
+function formatShortDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 interface Meta {
   total_citations: number;
+  partial?: boolean;
+  data_through?: string | null;
 }
 
 interface Props {
@@ -37,7 +45,11 @@ interface Props {
 
 export default function MonthlyLeaderboard({ onMonthChange }: Props) {
   const availableMonths = getAvailableMonths();
-  const [selectedMonth, setSelectedMonthState] = useState(availableMonths[0]);
+  const [selectedMonth, setSelectedMonthState] = useState(() =>
+    new Date().getDate() >= MIN_DAY_FOR_CURRENT_MONTH || availableMonths.length < 2
+      ? availableMonths[0]
+      : availableMonths[1]
+  );
 
   const setSelectedMonth = (m: { year: number; month: number }) => {
     setSelectedMonthState(m);
@@ -113,6 +125,11 @@ export default function MonthlyLeaderboard({ onMonthChange }: Props) {
           </button>
           <span className="text-lg font-semibold text-gray-700 dark:text-gray-200 min-w-[180px] text-center">
             {MONTH_NAMES[selectedMonth.month]} {selectedMonth.year}
+            {isNewest && (
+              <span className="ml-2 align-middle text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                so far
+              </span>
+            )}
           </span>
           <button
             onClick={() => navigateMonth(1)}
@@ -151,6 +168,11 @@ export default function MonthlyLeaderboard({ onMonthChange }: Props) {
               <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">
                 {(meta.total_citations || 0).toLocaleString()} citations
               </span>
+              {meta.partial && meta.data_through && (
+                <span>
+                  Month in progress &middot; SF has published tickets through {formatShortDate(meta.data_through)}
+                </span>
+              )}
             </div>
           )}
 
@@ -176,7 +198,7 @@ export default function MonthlyLeaderboard({ onMonthChange }: Props) {
                   ${(data[0].total_fines || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </p>
                 <p className="text-red-100 text-sm">
-                  {data[0].citation_count || 0} tickets in one month
+                  {data[0].citation_count || 0} tickets {meta?.partial ? 'so far this month' : 'in one month'}
                 </p>
               </div>
             </div>

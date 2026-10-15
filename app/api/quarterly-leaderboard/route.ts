@@ -1,109 +1,54 @@
 import { NextResponse } from 'next/server';
+import { fetchTopPlates, fetchDataThrough, cacheHeaders } from '@/lib/soda';
 
-export const dynamic = 'force-dynamic';
+// Rebuild at most once an hour
+export const revalidate = 3600;
 
-const SODA2_URL = 'https://data.sfgov.org/resource/ab4h-6ztd.json';
+// Cold (uncached) SF Open Data aggregations can exceed Vercel's 10s default
+export const maxDuration = 60;
 
-async function soql(params: Record<string, string>) {
-  const qs = new URLSearchParams(params);
-  const res = await fetch(`${SODA2_URL}?${qs}`, {
-    headers: { 'Accept': 'application/json' },
+const WINDOW_DAYS = 90;
+
+function shortDate(iso: string) {
+  return new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   });
-  if (!res.ok) throw new Error(`SODA2 error: ${res.status}`);
-  return res.json();
 }
 
-function getQuarterRange() {
-  // Last 3 complete months
-  const now = new Date();
-  let endYear = now.getFullYear();
-  let endMonth = now.getMonth() + 1; // current month (incomplete, use as end boundary)
-
-  let startYear = endYear;
-  let startMonth = endMonth - 3;
-  if (startMonth <= 0) {
-    startMonth += 12;
-    startYear -= 1;
-  }
-
-  const start = `${startYear}-${String(startMonth).padStart(2, '0')}-01T00:00:00.000`;
-  const end = `${endYear}-${String(endMonth).padStart(2, '0')}-01T00:00:00.000`;
-
-  return { start, end, startYear, startMonth, endYear, endMonth: endMonth - 1 };
-}
-
-const MONTH_NAMES = [
-  '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-];
-
+/**
+ * Rolling 90-day window ending on the newest citation SF has published,
+ * so the board always includes the latest data (current month too).
+ */
 export async function GET() {
   try {
-    const { start, end, startYear, startMonth, endYear, endMonth } = getQuarterRange();
-    const dateFilter = `citation_issued_datetime >= '${start}' AND citation_issued_datetime < '${end}'`;
+    const latest = (await fetchDataThrough()) || new Date().toISOString();
+    const endDay = latest.slice(0, 10);
+    const start = new Date(`${endDay}T00:00:00Z`);
+    start.setUTCDate(start.getUTCDate() - (WINDOW_DAYS - 1));
+    const startDay = start.toISOString().slice(0, 10);
 
-    const label = `${MONTH_NAMES[startMonth]} ${startYear} - ${MONTH_NAMES[endMonth]} ${endYear}`;
+    // Day-granular bounds keep the query string (and its cache key) stable all day
+    const dateFilter = `citation_issued_datetime >= '${startDay}T00:00:00.000' AND citation_issued_datetime <= '${endDay}T23:59:59.999'`;
+    const { data, total_citations } = await fetchTopPlates(dateFilter, revalidate);
 
-    // Run queries in parallel
-    const [topPlatesRaw, totalResult] = await Promise.all([
-      soql({
-        '$select': 'vehicle_plate, SUM(fine_amount) as total_fines, COUNT(*) as citation_count',
-        '$where': `${dateFilter} AND vehicle_plate IS NOT NULL AND vehicle_plate != ''`,
-        '$group': 'vehicle_plate',
-        '$order': 'total_fines DESC',
-        '$limit': '31',
-      }),
-      soql({
-        '$select': 'COUNT(*) as total',
-        '$where': dateFilter,
-      }),
-    ]);
-
-    const topPlates = topPlatesRaw
-      .filter((p: any) => p.vehicle_plate?.trim())
-      .slice(0, 30);
-
-    if (topPlates.length === 0) {
-      return NextResponse.json({ data: [], meta: { label, total_citations: 0 } });
-    }
-
-    // Get violations for top plates
-    const plateList = topPlates.map((p: any) => `'${p.vehicle_plate}'`).join(',');
-    const violationData = await soql({
-      '$select': 'vehicle_plate, violation_desc, COUNT(*) as cnt',
-      '$where': `${dateFilter} AND vehicle_plate IN (${plateList})`,
-      '$group': 'vehicle_plate, violation_desc',
-      '$order': 'vehicle_plate, cnt DESC',
-      '$limit': '5000',
-    });
-
-    const favViolation: Record<string, string> = {};
-    for (const v of violationData) {
-      if (!favViolation[v.vehicle_plate]) {
-        favViolation[v.vehicle_plate] = v.violation_desc;
-      }
-    }
-
-    const data = topPlates.map((p: any, i: number) => ({
-      rank: i + 1,
-      plate: p.vehicle_plate.trim().toUpperCase(),
-      total_fines: Math.round(parseFloat(p.total_fines) * 100) / 100,
-      citation_count: parseInt(p.citation_count),
-      favorite_violation: favViolation[p.vehicle_plate] || 'Unknown',
-    }));
-
-    return NextResponse.json({
-      data,
-      meta: {
-        label,
-        total_citations: parseInt(totalResult[0]?.total || '0'),
+    return NextResponse.json(
+      {
+        data,
+        meta: {
+          label: `Last ${WINDOW_DAYS} days: ${shortDate(startDay)} – ${shortDate(endDay)}`,
+          total_citations,
+          data_through: latest,
+        },
       },
-    });
+      { headers: cacheHeaders(revalidate) }
+    );
   } catch (error) {
     console.error('Quarterly leaderboard error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch from SF Open Data' },
-      { status: 500 }
+      { status: 502 }
     );
   }
 }

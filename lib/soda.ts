@@ -28,7 +28,7 @@ export async function soql<T = any>(
     headers,
     next: { revalidate },
     // Fail cleanly instead of hanging if SF Open Data is having a slow moment
-    signal: AbortSignal.timeout(45_000),
+    signal: AbortSignal.timeout(55_000),
   });
   if (!res.ok) throw new Error(`SODA2 error: ${res.status}`);
   return res.json();

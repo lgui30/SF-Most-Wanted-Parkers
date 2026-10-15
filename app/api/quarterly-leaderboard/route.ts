@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { fetchTopPlates, fetchDataThrough, cacheHeaders } from '@/lib/soda';
 
-// Cold (uncached) SF Open Data aggregations can exceed Vercel's 10s default
+// Cold (uncached) SF Open Data aggregations can exceed Vercel's 10s default.
+// The window shifts at 00:00 UTC, so vercel.json runs a daily cron at 00:05 UTC
+// to warm the new day's cache before visitors arrive.
 export const maxDuration = 60;
 
 // Cache SODA responses for an hour (the route itself runs per request, like the others)
